@@ -2,3 +2,5 @@
 logfile.log
 keys.json
 lineup.jpg
+*.jpg
+test.py

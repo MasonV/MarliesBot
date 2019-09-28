@@ -1,4 +1,37 @@
 {
     "Logging_Level": "INFO",
-    "Current_Season_ID" : 65
+    "Current_Season_ID" : 65,
+    "Teams" : 	[
+	    {"Name" : "Bakersfield Condors","team_ID" : 402},
+		{"Name" : "Belleville Senators","team_ID" : 413},
+		{"Name" : "Binghamton Devils","team_ID" : 414},
+		{"Name" : "Bridgeport Sound Tigers","team_ID" : 317},
+		{"Name" : "Charlotte Checkers","team_ID" : 384},
+		{"Name" : "Chicago Wolves","team_ID" : 330},
+		{"Name" : "Cleveland Monsters","team_ID" : 373},
+		{"Name" : "Colorado Eagles","team_ID" : 419},
+		{"Name" : "Grand Rapids Griffins","team_ID" : 328},
+		{"Name" : "Hartford Wolf Pack","team_ID" : 307},
+		{"Name" : "Hershey Bears","team_ID" : 319},
+		{"Name" : "Iowa Wild","team_ID" : 389},
+		{"Name" : "Laval Rocket","team_ID" : 415},
+		{"Name" : "Lehigh Valley Phantoms","team_ID" : 313},
+		{"Name" : "Manitoba Moose","team_ID" : 321},
+		{"Name" : "Milwaukee Admirals","team_ID" : 327},
+		{"Name" : "Ontario Reign","team_ID" : 403},
+		{"Name" : "Providence Bruins","team_ID" : 309},
+		{"Name" : "Rochester Americans","team_ID" : 323},
+		{"Name" : "Rockford IceHogs","team_ID" : 372},
+		{"Name" : "San Antonio Rampage","team_ID" : 331},
+		{"Name" : "San Diego Gulls","team_ID" : 404},
+		{"Name" : "San Jose Barracuda","team_ID" : 405},
+		{"Name" : "Springfield Thunderbirds","team_ID" : 411},
+		{"Name" : "Stockton Heat","team_ID" : 406},
+		{"Name" : "Syracuse Crunch","team_ID" : 324},
+		{"Name" : "Texas Stars","team_ID" : 380},
+		{"Name" : "Toronto Marlies","team_ID" : 335},
+		{"Name" : "Tucson Roadrunners","team_ID" : 412},
+		{"Name" : "Utica Comets","team_ID" : 390},
+		{"Name" : "Wilkes-Barre/Scranton Penguins","team_ID" : 316}
+	]
 }

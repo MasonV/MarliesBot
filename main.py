@@ -1,7 +1,7 @@
-import datetime, time, re, pytz, requests,  sys, os, io, ast,textwrap	# Standard Python Libraries - Functions
-import pprint, json, logging, requests							# Standard Python Libraries - IO
-
+import datetime, time, re, pytz,  sys, os, io ,textwrap	# Standard Python Libraries - Functions
+import pprint, json, logging, requests					# Standard Python Libraries - IO
 import sqlite3				# SQLITE database module
+
 import praw					# Reddit API wrapper
 import tweepy				# Twitter Reading Module   - tweet object: 
 							# https://gist.github.com/dev-techmoe/ef676cdd03ac47ac503e856282077bf2
@@ -34,17 +34,18 @@ class AHL:
 	
 	# 	
 	def __add_games_to_database(self,ics_text, season_ID, team_id):
-		''' Returns None if no ICS is empty (season invalid), 
-					False if no new games are added
-					True if some new games are added
-
-			Searches the provided ICS file for pertenant schedule information. 
+		''' Searches the provided ICS file for pertenant schedule information. 
 			Current Compatable Teams: 
 				1. Toronto Marlies
 				2. 
 			I'm not sure it'll ever be compatable with all teams as there is different information 
 			in each team's ICS file. May need to move to an online table reader if expanding to 
 			all teams is not possible through simple ICS parsing.
+
+			Input: Season & Team IDs provided by TheAHL.com
+			Output: None if ICS is empty (season invalid), 
+					False if no new games are added
+					True if some new games are added
 		'''
 		c = self.db_conn.cursor()
 		schedule_updated = False
@@ -77,6 +78,10 @@ class AHL:
 		return None if IDs == [] else schedule_updated
 
 	def set_game_status(self,game_id,status):
+		''' Sets the status of a game_id in the AHL database to the provided status.
+				Input:  game_id, status to set the game to
+				Output: None
+		'''
 		c = self.db_conn.cursor()
 		now = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 		tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
@@ -193,29 +198,43 @@ def get_lineup_from_twitter():
 
 	# Grab several tweets.
 	PlayerList = []
-	tweets = MB_twitter_connection.user_timeline(screen_name = "TorontoMarlies", count = 150)
+	tweets = MB_twitter_connection.user_timeline(screen_name = "TorontoMarlies", count = 10)
 	#####################   @TorontoMarlies Image Option
 	# Look for a tweet that is talks about a lineup and has an image. 
-	for tweet in tweets:
-		if ("lineup" in tweet.text) and ('media' in tweet.entities):
-			image_url = tweet.entities['media'][0]['media_url']
-			image_data = requests.get(image_url).content
+	# for tweet in tweets:
+	# 	if ("lineup" in tweet.text) and ('media' in tweet.entities):
+	# 		image_url = tweet.entities['media'][0]['media_url']
+	# 		image_data = requests.get(image_url).content
 
-			# Get player names from image
-			pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
-			image = Image.open(io.BytesIO(image_data))
-			image = PIL.ImageOps.invert(image)
-			image_text = pytesseract.image_to_string(image).title()
+	# 		# Get player names from image
+	# 		pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+	# 		image = Image.open(io.BytesIO(image_data))
+	# 		image = PIL.ImageOps.invert(image)
+	# 		image_text = pytesseract.image_to_string(image).title()
+
+	# 		# Group players into their positional groups
+	# 		player_groups = image_text.split("\n\n")
+	# 		forwards = re.findall("([a-zA-Z’']{2,} [a-zA-Z’']{2,})",player_groups[0])
+	# 		defenders = re.findall("([a-zA-Z]{2,} [a-zA-Z’']{2,})", player_groups[1])
+	# 		goalies = re.findall("([a-zA-Z’']{2,} [a-zA-Z’']{2,})",player_groups[2] )
+	# 		PlayerList = [forwards,defenders, goalies]
+	# 		break
+
+		#####################   @TorontoMarlies Text Option
+	# Look for a tweet that is talks about a lineup and has an image. 
+	for tweet in tweets:
+		if all( x in tweet.text for x in {"line","MarliesLive"}):
 
 			# Group players into their positional groups
 			player_groups = image_text.split("\n\n")
-			forwards = re.findall("([a-zA-Z]{2,} [a-zA-Z]{2,})",player_groups[0])
-			defenders = re.findall("([a-zA-Z]{2,} [a-zA-Z]{2,})", player_groups[1])
-			goalies = re.findall("([a-zA-Z]{2,} [a-zA-Z]{2,})",player_groups[2] )
-			Playerslist = [forwards,defenders, goalies]
+			forwards = re.findall("([a-zA-Z’']{2,})",player_groups[1]) 		#0th is "tonight's lineup/lines are"
+			defenders = re.findall("([a-zA-Z’']{2,})", player_groups[2])
+			goalies = re.findall("([a-zA-Z’']{2,})",player_groups[3] )
+			PlayerList = [forwards,defenders, goalies]
 			break
 
-	return Playerslist
+	return PlayerList
+
 def convert_lineup_to_text(Playerslist):
 	'''Helper function to make the program more readable. Takes the playerlist, builds some tables
 		and outputs the selftext for the final reddit post. 
@@ -263,9 +282,9 @@ def init():
 		sys.exit()
 	else:
 		currentTime = datetime.datetime.now()
-		# Sleep until 1 hour before the game. The 2nd indixes is the gametime column. 
-		# sleepTime = (datetime.datetime.strptime(new_game[2],'%Y-%m-%d %H:%M:%S+00:00')-currentTime).total_seconds()- 3600 
-		# time.sleep(sleepTime)
+		# Sleep until 1 hour before the game. TPastrňákhe 2nd indixes is the gametime column. 
+		sleepTime = (datetime.datetime.strptime(new_game[2],'%Y-%m-%d %H:%M:%S+00:00')-currentTime).total_seconds()- 3600 
+		time.sleep(sleepTime)
 
 	print("Executing Main")
 	main(AHL_Hockey, new_game)
@@ -283,8 +302,10 @@ def main(AHL_Hockey, new_game):
 			Playerslist = AHL_Hockey.get_last_lineup(team = "Toronto Marlies")
 			Playerslist = json.loads(Playerslist)
 		else:
-			# time.sleep(300)
-			pass
+			print("Waiting 2 minutes")
+			time.sleep(120)
+
+			
 	AHL_Hockey.store_lineup(int(new_game[0]),"Toronto Marlies",Playerslist)
 	AHL_Hockey.set_game_status(new_game[0],"IN PROGRESS")
 

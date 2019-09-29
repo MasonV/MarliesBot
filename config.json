@@ -1,5 +1,4 @@
 {
-    "Logging_Level": "INFO",
     "Current_Season_ID" : 65,
     "Teams" : 	[
 	    {"Name" : "Bakersfield Condors","team_ID" : 402},

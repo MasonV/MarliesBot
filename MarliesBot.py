@@ -1,6 +1,8 @@
 import datetime, time, re, pytz,  sys, os, io ,textwrap	# Standard Python Libraries - Functions
 import pprint, json, logging, requests					# Standard Python Libraries - IO
 import sqlite3				# SQLITE database module
+import threading
+import logging
 
 import praw					# Reddit API wrapper
 import tweepy				# Twitter Reading Module   - tweet object: 
@@ -9,24 +11,39 @@ from PIL import Image 		# Image to Text libraries
 import PIL.ImageOps
 import pytesseract
 
+class ahl_team(threading.Thread):
+	def __init__(self):
+		super(ahl_team, self).__init__()
+
+	def run(self):
+		pass
+
 class AHL:
 	''' The class is a container for the different helper functions. Information is stored
 			in a sqlite database rather than in python classes as that was  unnecessary. 
 	'''
+	log = logging.getLogger('AHLBot.AHL')
+
+
 	def __init__(self, database=None):
 		if database != None:
 			AHL.database = database
 			self.connect_to_database()
 			self.update_schedule()
 			self.close_database()
+			AHL.log.info("AHL class initialized.")
 
 	# Helper functions to connect to and disconnect from the database. Should be called at start
 	#	and at the end of the program. 
 	def connect_to_database(self):
+		AHL.log.debug("Connecting to database.")
+
 		if AHL.database != None:
 			self.db_conn = sqlite3.connect("AHL.sqlite")
 		return self.db_conn if self.db_conn != None else False
 	def close_database(self):
+		AHL.log.debug("closing to database.")
+
 		if self.db_conn != None:
 			self.db_conn.close()
 			return True
@@ -47,6 +64,8 @@ class AHL:
 					False if no new games are added
 					True if some new games are added
 		'''
+		AHL.log.debug("adding games to schedule.")
+
 		c = self.db_conn.cursor()
 		schedule_updated = False
 		# Regex Expressions for finding game information
@@ -64,7 +83,7 @@ class AHL:
 			home_team = summaries[i].split(" @ ")[1]
 			UTC_start = datetime.datetime.strptime(datetimes[i], "%Y%m%dT%H%M%SZ").replace(tzinfo=pytz.utc)
 			try:
-				c.execute('''INSERT INTO GameSchedule (
+				c.execute('''INSERT INTO Games (
 					game_ID, season_ID, game_DateTime,	home_team, away_team, location,		status
 					)VALUES (?,?,?,?,?,?,?)''',(
 					IDs[i],  season_ID, UTC_start,		home_team, away_team, locations[i], status[i]
@@ -85,7 +104,7 @@ class AHL:
 		c = self.db_conn.cursor()
 		now = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 		tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
-		c.execute(("UPDATE GameSchedule SET status = '"'{0}'"' WHERE game_id = {1}").format(status,game_id))
+		c.execute(("UPDATE Games SET status = '"'{0}'"' WHERE game_id = {1}").format(status,game_id))
 
 	def update_schedule(self):
 		''' Attempts to update the AHL schedule database through downloading and parsing ICS files
@@ -107,22 +126,27 @@ class AHL:
 		return any_update
 
 	def is_gameday(self, team=None):
+		AHL.log.debug("Checking if it is gameday")
 		c = self.db_conn.cursor()
 		now = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+		print(now)
 		tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
-		c.execute("SELECT * FROM 'GameSchedule' \
+		c.execute("SELECT * FROM 'Games' \
 			WHERE status = 'CONFIRMED' \
-			AND DATETIME(game_DateTime) > datetime(?)",(now,))
-		
-		# c.execute(f"SELECT * FROM 'GameSchedule' WHERE (DATE(game_DateTime) = {today} AND (home_team = {team} OR away_team = {team}) ")
+			AND DATETIME(game_DateTime) > DATE('now') \
+			AND DATETIME(game_DateTime) < DATE('now','+1 day') \
+			ORDER BY game_DateTime")
+
+		# c.execute(f"SELECT * FROM 'Games' WHERE (DATE(game_DateTime) = {today} AND (home_team = {team} OR away_team = {team}) ")
 		game_data = c.fetchone()
+		AHL.log.debug(f"Today's game_data: {game_data}")
 
 		return None if game_data is None else game_data
 
 	def get_last_lineup(self, team=None):
 		c = self.db_conn.cursor()
-		c.execute(("SELECT * FROM 'Lineups' WHERE ID = (SELECT MAX(game_ID) from 'Lineup') AND team = {0}").format(team))
-		return (c.fetchone())
+		c.execute(("SELECT lineup FROM 'Lineups' WHERE game_ID = (SELECT MAX(game_ID) from 'Lineups') AND team = '"'Toronto Marlies'"'"))
+		return c.fetchone()[0]
 	def store_lineup(self, game_ID, team, Playerslist):
 		c = self.db_conn.cursor()
 		print(Playerslist)
@@ -160,30 +184,28 @@ def build_reddit_table(headers, values):
 
 	return f"{header_text}\n{divisor_text}\n{value_text}"
 
-def configure_logging(Logging_Level):
-	''' Configure the logging module. 
-			BasicConfig is used to include logger handlers from other modules. 
+def configure_logging():
+	''' A straight forward logging configuration: 
+			Console: INFO and up notifcations, with truncated messages. 
+			File   : Complete debug information.
 	'''
-
-	# creates file/console handlers. file should be always set to DEBUG.
-	file_handler = logging.FileHandler('logfile.log',mode='w')
+	file_handler = logging.FileHandler('logfile.log', encoding= 'utf-8', mode='w')
 	file_handler.setLevel(logging.DEBUG)
-	file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)40s - %(levelname)8s - %(message)s'))
 	console_handler = logging.StreamHandler()
-	console_handler.setLevel(logging.getLevelName(Logging_Level))  # set console logging level from config
-
-	### Put custom level alterations for other modules here:
-	logging.getLogger("prawcore").setLevel(logging.ERROR)  
+	console_handler.setLevel(logging.INFO)
+	console_handler.setFormatter(logging.Formatter(fmt='%(asctime)s | %(name)-18.18s | %(levelname)-4s | %(message)-72s'))	
 
 	# Configure logging using the handlers. 
 	logging.basicConfig(
 		handlers=[file_handler,console_handler],
 		level = logging.DEBUG,
-		format='%(asctime)s - %(name)17s  - %(levelname)8s - %(message)s',
+		format='%(asctime)s | %(name)-32.32s | %(levelname)-8.8s | %(message)s',
 		datefmt = '%Y-%m-%d %H:%M:%S'
 		)
 
-	return
+	# Setting logging level for particularly Verbose loggers.	
+	# logging.getLogger("prawcore").setLevel(logging.ERROR)	
+	logging.getLogger('googleapiclient.discovery').setLevel(logging.WARNING)
 
 # Procedural functions to clean up the code
 def get_lineup_from_twitter():
@@ -198,7 +220,7 @@ def get_lineup_from_twitter():
 
 	# Grab several tweets.
 	PlayerList = []
-	tweets = MB_twitter_connection.user_timeline(screen_name = "TorontoMarlies", count = 10)
+	tweets = MB_twitter_connection.user_timeline(screen_name = "TorontoMarlies", count = 5, tweet_mode="extended")
 	#####################   @TorontoMarlies Image Option
 	# Look for a tweet that is talks about a lineup and has an image. 
 	# for tweet in tweets:
@@ -223,13 +245,15 @@ def get_lineup_from_twitter():
 		#####################   @TorontoMarlies Text Option
 	# Look for a tweet that is talks about a lineup and has an image. 
 	for tweet in tweets:
-		if all( x in tweet.text for x in {"line","MarliesLive"}):
+		# if all( x in tweet.text for x in {"line","MarliesLive"}):
+		if "line" in tweet.full_text:
+			print(tweet.full_text)
 
 			# Group players into their positional groups
-			player_groups = image_text.split("\n\n")
-			forwards = re.findall("([a-zA-Z’']{2,})",player_groups[1]) 		#0th is "tonight's lineup/lines are"
-			defenders = re.findall("([a-zA-Z’']{2,})", player_groups[2])
-			goalies = re.findall("([a-zA-Z’']{2,})",player_groups[3] )
+			player_groups = tweet.full_text.split("\n\n")[1:4] 	# slices don't include the end index
+			forwards = re.findall("([a-zA-Z’']{2,})",player_groups[0]) 		#0th is "tonight's lineup/lines are"
+			defenders = re.findall("([a-zA-Z’']{2,})", player_groups[1])
+			goalies = re.findall("([a-zA-Z’']{2,})",player_groups[2])
 			PlayerList = [forwards,defenders, goalies]
 			break
 
@@ -263,13 +287,16 @@ def convert_lineup_to_text(Playerslist):
 	#If you insert the tables with the pretext, the inserted variables don't have a common leading whitespace for dedent to remove.
 	return f"{pretext} \n{forwards_text} \n{defenders_text} \n{goalie_text}" 
 	 
-	
-def init(): 
-	''' Setup for the execution of the main script closer to gametime.  
+
+
+def main():
+	''' Its gametime! Watch for lineups on twitter and post them to reddit. 
 	'''
+	configure_logging()
+	root_log = logging.getLogger('AHLBot.Root')
+
 	keys = load_json("keys.json")
 	config = load_json("config.json")
-	configure_logging(config['Logging_Level'])
 
 	# Connect to the AHL database (not TheAHL.com)
 	AHL_Hockey = AHL('AHL.sqlite')
@@ -281,31 +308,34 @@ def init():
 	if new_game == None:
 		sys.exit()
 	else:
-		currentTime = datetime.datetime.now()
+		currentTime = datetime.datetime.utcnow()
+
 		# Sleep until 1 hour before the game. TPastrňákhe 2nd indixes is the gametime column. 
-		sleepTime = (datetime.datetime.strptime(new_game[2],'%Y-%m-%d %H:%M:%S+00:00')-currentTime).total_seconds()- 3600 
-		time.sleep(sleepTime)
-
-	print("Executing Main")
-	main(AHL_Hockey, new_game)
-
-def main(AHL_Hockey, new_game):
-	''' Its gametime! Watch for lineups on twitter and post them to reddit. 
-	'''
+		sleepTime = (datetime.datetime.strptime(new_game[2],'%Y-%m-%d %H:%M:%S+00:00')-currentTime).total_seconds() - 3600  
+		print(new_game[2])
+		root_log.info(f"Sleeping for {sleepTime/60} minutes.")
+		try:
+			time.sleep(sleepTime)
+		except: 
+			pass
 
 	# Poll twitter until a lineup is found. If too close to gametime use the last lineup available.
 	Playerslist = []
 	while Playerslist == []:
 		Playerslist = get_lineup_from_twitter()
-		time_to_game = (datetime.datetime.strptime(new_game[2],'%Y-%m-%d %H:%M:%S+00:00') - datetime.datetime.now()).total_seconds()
-		if (time_to_game < 300) and (Playerslist == []):
+		time_to_game = (datetime.datetime.strptime(new_game[2],'%Y-%m-%d %H:%M:%S+00:00') - datetime.datetime.utcnow()).total_seconds()
+		print(f"Time to game: {time_to_game}")
+		if Playerslist != []: 
+			break
+		elif time_to_game < 300:
 			Playerslist = AHL_Hockey.get_last_lineup(team = "Toronto Marlies")
+			print(Playerslist)
 			Playerslist = json.loads(Playerslist)
 		else:
 			print("Waiting 2 minutes")
 			time.sleep(120)
 
-			
+
 	AHL_Hockey.store_lineup(int(new_game[0]),"Toronto Marlies",Playerslist)
 	AHL_Hockey.set_game_status(new_game[0],"IN PROGRESS")
 
@@ -315,11 +345,12 @@ def main(AHL_Hockey, new_game):
 	# to ensure it gives the right local date I convert the UTC to local gametime.
 	UTC_start = datetime.datetime.strptime(new_game[2], "%Y-%m-%d %H:%M:%S+00:00").replace(tzinfo=pytz.utc)
 	EST_game_time = UTC_start.astimezone(pytz.timezone('US/Eastern'))
+	EST_game_time_string = datetime.datetime.strftime(EST_game_time, "%b. %d %Y - %I %p")
 
 	if new_game[3] == "Toronto Marlies":
-		post_title = f"GDT: Toronto Marlies vs. {new_game[4]} - {datetime.datetime.strftime(EST_game_time,'%h %m %p')}"
+		post_title = f"GDT: Toronto Marlies vs. {new_game[4]} - {EST_game_time_string}"
 	else:
-		post_title = f"GDT: Toronto Marlies @ {new_game[3]} - {datetime.datetime.strftime(EST_game_time,'%h %m %p')}"
+		post_title = f"GDT: Toronto Marlies @ {new_game[3]} - {EST_game_time_string}"
 
 
 	# Post the new Game Day Thread (GDT) to the sub
@@ -348,4 +379,4 @@ def main(AHL_Hockey, new_game):
 
 
 if __name__ == '__main__':
-	init()
+	main()

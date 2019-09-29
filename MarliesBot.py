@@ -364,7 +364,7 @@ def main():
 	print(selftext)
 
 
-	GDT = MB_reddit.subreddit("MacerV").submit(post_title, selftext = selftext)
+	GDT = MB_reddit.subreddit("TorontoMarlies").submit(post_title, selftext = selftext)
 	GDT.mod.sticky()
 	GDT.mod.suggested_sort(sort='new')
 

@@ -276,11 +276,9 @@ def convert_lineup_to_text(Playerslist):
 
 	Stream2: [OnHockey](http://onhockey.tv/)
 
-	TV: NA
+	TV: Leafs Nation Netowrk
 
-	[Marlies Live Radio](http://marlies.ca/listen-live)
-
-	Away Live Radio: NA (WIP)
+	___
 	___
 	""")
 
